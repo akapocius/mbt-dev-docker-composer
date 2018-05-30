@@ -1,0 +1,96 @@
+version: "2"
+
+services:
+
+  memcached:
+    image: memcached:latest
+    container_name: memcached
+    networks:
+      main:
+        ipv4_address: 172.18.0.4
+
+  mysql_5_5:
+    image: mysql:5.5
+    container_name: mysql_5_5
+    volumes:
+      - ${MYSQL_5_5_DB_PATH}:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    networks:
+      main:
+        ipv4_address: 172.18.0.2
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: mysql_5_5
+    networks:
+      main:
+        ipv4_address: 172.18.0.3
+
+  # ------------------------
+  #webserver:
+  #      image: nginx:alpine
+  #      container_name: webserver
+  #      working_dir: /application
+  #      volumes:
+  #          - ../development/web/:/application
+  #          - ./phpdocker/nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+  #          - ./logs/nginx:/var/log/nginx
+  #      ports:
+  #       - "80:80"
+  #      links:
+  #       - php53
+  #       - php54
+  #       - php56
+
+  webserver:
+    container_name: webserver
+    image: nginx:alpine
+    volumes:
+      - ./nginx-sites:/etc/nginx/conf.d
+      - ${LOGS_NGINX_PATH}:/var/log/nginx
+      - ${BHOTEL_PROJECT_PATH}:/var/www/html
+      #- ${API_PROJECT_PATH}:/var/www/html/api
+      #- ${SPBRIDGE_PROJECT_PATH}:/var/www/html/spbridge
+    links:
+      - bhotel
+      #- api
+      #- spbridge
+      #- widgets
+    networks:
+      main:
+        ipv4_address: 172.18.0.6
+
+  # ------------------------
+
+  bhotel:
+    build:
+      context: .
+      dockerfile: php53/Dockerfile
+    container_name: bhotel
+    working_dir: /var/www/html
+    volumes:
+      - ${BHOTEL_PROJECT_PATH}:/var/www/html
+    links:
+      - memcached
+      - mysql_5_5
+    networks:
+      main:
+        ipv4_address: 172.18.0.5
+    #extra_hosts:
+    #  - "api.dev:172.18.0.3"
+    #  - "spbridge.dev:172.18.0.3"
+
+networks:
+  main:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1

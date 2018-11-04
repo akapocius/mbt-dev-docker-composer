@@ -2,16 +2,16 @@ version: "2"
 
 services:
 
-  memcached:
+  bhotel_memcached:
     image: memcached:latest
-    container_name: memcached
+    container_name: bhotel_memcached
     networks:
       main:
         ipv4_address: 172.18.0.4
 
-  mysql_5_5:
+  bhotel_mysql_5_5:
     image: mysql:5.5
-    container_name: mysql_5_5
+    container_name: bhotel_mysql_5_5
     volumes:
       - ${MYSQL_5_5_DB_PATH}:/var/lib/mysql
     ports:
@@ -22,13 +22,13 @@ services:
       main:
         ipv4_address: 172.18.0.2
 
-  phpmyadmin:
+  bhotel_phpmyadmin:
     image: phpmyadmin/phpmyadmin
-    container_name: phpmyadmin
+    container_name: bhotel_phpmyadmin
     ports:
       - "8081:80"
     environment:
-      PMA_HOST: mysql_5_5
+      PMA_HOST: bhotel_mysql_5_5
     networks:
       main:
         ipv4_address: 172.18.0.3
@@ -49,19 +49,21 @@ services:
   #       - php54
   #       - php56
 
-  webserver:
-    container_name: webserver
+  bhotel_webserver:
+    container_name: bhotel_webserver
     image: nginx:alpine
     volumes:
       - ./nginx-sites:/etc/nginx/conf.d
       - ${LOGS_NGINX_PATH}:/var/log/nginx
       - ${BHOTEL_PROJECT_PATH}:/var/www/html
-      #- ${API_PROJECT_PATH}:/var/www/html/api
-      #- ${SPBRIDGE_PROJECT_PATH}:/var/www/html/spbridge
+      - ${SANDBOX_PROJECT_PATH}:/var/www/html/application
+      - ${API_PROJECT_PATH}:/var/www/html/api
+      - ${SPBRIDGE_PROJECT_PATH}:/var/www/html/sp-mbt-bridge
     links:
       - bhotel
-      #- api
-      #- spbridge
+      - bhotel_sandbox
+      - bhotel_mbt_api
+      - bhotel_mbt_sp_bridge
       #- widgets
     networks:
       main:
@@ -78,14 +80,67 @@ services:
     volumes:
       - ${BHOTEL_PROJECT_PATH}:/var/www/html
     links:
-      - memcached
-      - mysql_5_5
+      - bhotel_memcached
+      - bhotel_mysql_5_5
     networks:
       main:
         ipv4_address: 172.18.0.5
-    #extra_hosts:
-    #  - "api.dev:172.18.0.3"
-    #  - "spbridge.dev:172.18.0.3"
+    extra_hosts:
+      - "api.dev.lt:172.18.0.6"
+      - "spbridge.dev.lt:172.18.0.6"
+
+  bhotel_mbt_api:
+    build:
+      context: .
+      dockerfile: php56/Dockerfile
+    container_name: bhotel_mbt_api
+    working_dir: /var/www/html
+    volumes:
+      - ${API_PROJECT_PATH}:/var/www/html/api
+      - ${SSH_KEY_PATH}:/root/.ssh/id_rsa:ro
+    links:
+      - bhotel_mysql_5_5
+    networks:
+      main:
+        ipv4_address: 172.18.0.8
+    extra_hosts:
+      - "bhotel.dev.lt:172.18.0.6"
+      - "spbridge.dev.lt:172.18.0.6"
+
+  bhotel_mbt_sp_bridge:
+    build:
+      context: .
+      dockerfile: php56/Dockerfile
+    container_name: bhotel_mbt_sp_bridge
+    working_dir: /var/www/html
+    volumes:
+      - ${SPBRIDGE_PROJECT_PATH}:/var/www/html/sp-mbt-bridge
+      - ${SSH_KEY_PATH}:/root/.ssh/id_rsa:ro
+    links:
+      - bhotel_mysql_5_5
+    networks:
+      main:
+        ipv4_address: 172.18.0.9
+    extra_hosts:
+      - "bhotel.dev.lt:172.18.0.6"
+      - "api.dev.lt:172.18.0.6"
+
+
+  bhotel_sandbox:
+    build:
+      context: .
+      dockerfile: php56/Dockerfile
+    container_name: bhotel_sandbox
+    working_dir: /var/www/html/application
+    volumes:
+      - ${SANDBOX_PROJECT_PATH}:/var/www/html/application
+      - ./php56/php-ini-overrides.ini:/etc/php5/fpm/conf.d/php-ini-overrides.ini
+    links:
+      - bhotel_memcached
+      - bhotel_mysql_5_5
+    networks:
+      main:
+        ipv4_address: 172.18.0.7
 
 networks:
   main:
